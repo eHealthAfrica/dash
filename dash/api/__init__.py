@@ -36,35 +36,35 @@ class API(object):
     def __init__(self, org):
         self.org = org
 
-    def get_group(self, name):
+    def get_group(self, name, skip_cache=False):
         """
         Returns the attributes for a group
         """
         key = 'group:%d:%s' % (self.org.id, slugify(name))
-        return self._get_from_cache(key, GROUP_CACHE_TIME, lambda: self._fetch_group(name))
+        return self._get_from_cache(key, GROUP_CACHE_TIME, lambda: self._fetch_group(name), skip_cache)
 
-    def get_contacts(self, group=None):
+    def get_contacts(self, group=None, skip_cache=False):
         """
         Returns the contacts within a particular group
         """
         key = 'contacts:%d:%s' % (self.org.id, slugify(group))
-        return self._get_from_cache(key, CONTACT_CACHE_TIME, lambda: self._fetch_contacts(group))
+        return self._get_from_cache(key, CONTACT_CACHE_TIME, lambda: self._fetch_contacts(group), skip_cache)
 
-    def get_country_geojson(self):
+    def get_country_geojson(self, skip_cache=False):
         """
         Returns the geojson for a particular country
         """
         key = 'geojson:%d' % self.org.id
-        return self._get_from_cache(key, BOUNDARY_CACHE_TIME, self._fetch_country_geojson)
+        return self._get_from_cache(key, BOUNDARY_CACHE_TIME, self._fetch_country_geojson, skip_cache)
 
-    def get_state_geojson(self, state_id):
+    def get_state_geojson(self, state_id, skip_cache=False):
         """
         Returns the geojson for a particular state
         """
         key = 'geojson:%d:%s' % (self.org.id, state_id)
-        return self._get_from_cache(key, BOUNDARY_CACHE_TIME, lambda: self._fetch_state_geojson(state_id))
+        return self._get_from_cache(key, BOUNDARY_CACHE_TIME, lambda: self._fetch_state_geojson(state_id), skip_cache)
 
-    def get_ruleset_results(self, ruleset_id, segment=None):
+    def get_ruleset_results(self, ruleset_id, segment=None, skip_cache=False):
         """
         Returns the results summary for a flow ruleset.
         """
@@ -78,9 +78,12 @@ class API(object):
 
             key += ":" + slugify(unicode(json.dumps(segment)))
 
-        return self._get_from_cache(key, RESULT_CACHE_TIME, lambda: self._fetch_ruleset_results(ruleset_id, segment))
+        return self._get_from_cache(key,
+                                    RESULT_CACHE_TIME,
+                                    lambda: self._fetch_ruleset_results(ruleset_id, segment),
+                                    skip_cache)
 
-    def get_contact_field_results(self, contact_field_label, segment=None):
+    def get_contact_field_results(self, contact_field_label, segment=None, skip_cache=False):
         """
         Returns the results summary for a contact field.
         """
@@ -94,7 +97,10 @@ class API(object):
 
             key += ":" + slugify(unicode(json.dumps(segment)))
 
-        return self._get_from_cache(key, CONTACT_RESULT_CACHE_TIME, lambda: self._fetch_contact_field_results(contact_field_label, segment))
+        return self._get_from_cache(key,
+                                    CONTACT_RESULT_CACHE_TIME,
+                                    lambda: self._fetch_contact_field_results(contact_field_label, segment),
+                                    skip_cache)
 
     def get_flow(self, flow_id):
         """
@@ -134,14 +140,14 @@ class API(object):
         except Exception as e:
             raise e
 
-    def get_flows(self, filter=None):
+    def get_flows(self, filter=None, skip_cache=False):
         key = 'flows:%d' % self.org.id
         if filter:
             key += ":" + filter
 
-        return self._get_from_cache(key, FLOWS_CACHE_TIME, lambda: self._fetch_flows(filter))
+        return self._get_from_cache(key, FLOWS_CACHE_TIME, lambda: self._fetch_flows(filter), skip_cache)
 
-    def _get_from_cache(self, key, timeout, fetch_method):
+    def _get_from_cache(self, key, timeout, fetch_method, skip_cache):
         """
         Takes care of performing the following logic:
             1) check whether we have a recent version of the cached value, if so returns it
@@ -175,9 +181,10 @@ class API(object):
         # 3) acquire our lock and calculate our value
         with r.lock(lock_key, 240):
             # check for a cached value again, it's possible we were waiting in line
-            cached_value = cache.get(key)
-            if cached_value is not None:
-                return cached_value
+            if not skip_cache:
+                cached_value = cache.get(key)
+                if cached_value is not None:
+                    return cached_value
 
             # no such luck, let's go calculate it
             # fetch_methods are expected to raise exception if we aren't getting something valid looking
