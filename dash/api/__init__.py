@@ -5,6 +5,7 @@ import urllib
 from django.conf import settings
 from django.core.cache import cache
 from django.utils.text import slugify
+import pycountry
 from redis_cache import get_redis_connection
 import requests
 import time
@@ -76,6 +77,12 @@ class API(object):
             elif location == 'District':
                 segment['location'] = self.org.get_config('district_label')
 
+            if self.org.get_config('is_global'):
+                if "location" in segment:
+                    del segment["location"]
+                    segment["contact_field"] = self.org.get_config('state_label')
+                    segment["values"] = [elt.alpha2 for elt in pycountry.countries.objects]
+
             key += ":" + slugify(unicode(json.dumps(segment)))
 
         return self._get_from_cache(key, RESULT_CACHE_TIME, lambda: self._fetch_ruleset_results(ruleset_id, segment))
@@ -91,6 +98,13 @@ class API(object):
                 segment['location'] = self.org.get_config('state_label')
             elif location == 'District':
                 segment['location'] = self.org.get_config('district_label')
+
+            if self.org.get_config('is_global'):
+                if "location" in segment:
+                    del segment["location"]
+                    segment["contact_field"] = self.org.get_config('state_label')
+                    segment["values"] = [elt.alpha2 for elt in pycountry.countries.objects]
+
 
             key += ":" + slugify(unicode(json.dumps(segment)))
 
